@@ -1,0 +1,6 @@
+bin/
+reports/.tracker-state.json
+reports/*.md
+reports/timeon.log
+reports/timeon.err
+.DS_Store
