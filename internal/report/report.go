@@ -10,6 +10,8 @@ import (
 	"github.com/duhl/timeon/internal/state"
 )
 
+const minAppSeconds = 60
+
 type AppUsage struct {
 	Name    string
 	Seconds int
@@ -46,26 +48,6 @@ func Write(path string, s *state.DayState) error {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("## Timeline (10-minute blocks)\n\n")
-	blocks := timelineBlocks(s, now)
-	if len(blocks) == 0 {
-		b.WriteString("_No activity recorded yet._\n")
-	} else {
-		for _, block := range blocks {
-			end := state.BlockEndLabel(block.Key)
-			activeMin := block.Seconds / 60
-			remainder := block.Seconds % 60
-			label := fmt.Sprintf("%d minutes active", activeMin)
-			if remainder > 0 {
-				label = fmt.Sprintf("%d minutes %d seconds active", activeMin, remainder)
-			}
-			if activeMin == 0 && remainder == 0 {
-				label = "0 minutes active"
-			}
-			b.WriteString(fmt.Sprintf("- **%s - %s:** %s\n", block.Key, end, label))
-		}
-	}
-
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
@@ -80,6 +62,9 @@ func Read(path string) (string, error) {
 func sortedApps(s *state.DayState) []AppUsage {
 	apps := make([]AppUsage, 0, len(s.AppSeconds))
 	for name, seconds := range s.AppSeconds {
+		if seconds < minAppSeconds {
+			continue
+		}
 		apps = append(apps, AppUsage{Name: name, Seconds: seconds})
 	}
 	sort.Slice(apps, func(i, j int) bool {
@@ -89,35 +74,6 @@ func sortedApps(s *state.DayState) []AppUsage {
 		return apps[i].Seconds > apps[j].Seconds
 	})
 	return apps
-}
-
-type blockEntry struct {
-	Key     string
-	Seconds int
-}
-
-func timelineBlocks(s *state.DayState, now time.Time) []blockEntry {
-	loc := now.Location()
-	dayStart, err := time.ParseInLocation("2006-01-02", s.Date, loc)
-	if err != nil {
-		return nil
-	}
-
-	end := now.Truncate(10 * time.Minute).Add(10 * time.Minute)
-	dayEnd := dayStart.Add(24 * time.Hour)
-	if end.After(dayEnd) {
-		end = dayEnd
-	}
-
-	var blocks []blockEntry
-	for t := dayStart; t.Before(end); t = t.Add(10 * time.Minute) {
-		key := t.Format("15:04")
-		seconds := s.BlockSeconds[key]
-		if seconds > 0 {
-			blocks = append(blocks, blockEntry{Key: key, Seconds: seconds})
-		}
-	}
-	return blocks
 }
 
 func formatDuration(seconds int) string {

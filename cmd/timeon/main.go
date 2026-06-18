@@ -23,6 +23,8 @@ func main() {
 		runDaemon()
 	case "report", "today":
 		printTodayReport()
+	case "week":
+		printWeekReport()
 	case "diagnose":
 		runDiagnose()
 	case "help", "-h", "--help":
@@ -71,6 +73,22 @@ func printTodayReport() {
 	fmt.Print(content)
 }
 
+func printWeekReport() {
+	cfg, err := config.Default()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	content, err := report.Week(cfg.ReportsDir, time.Now())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "week report: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Print(content)
+}
+
 func runDiagnose() {
 	diag := macos.DiagnoseFrontmost()
 	fmt.Printf("selected:      %s\n", diag.Selected)
@@ -91,6 +109,7 @@ Usage:
   timeon daemon       Run the background tracker
   timeon report       Print today's markdown report
   timeon today        Alias for report
+  timeon week         Print this week's daily totals and average
   timeon diagnose     Show current frontmost app detection
 
 Environment:
