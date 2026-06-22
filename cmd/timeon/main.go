@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/duhl/timeon/internal/config"
@@ -22,9 +23,19 @@ func main() {
 	case "daemon":
 		runDaemon()
 	case "report", "today":
-		printTodayReport()
+		printDayReport(0)
+	case "day":
+		daysAgo, err := optionalOffset(os.Args[2:], "day")
+		if err != nil {
+			exitUsage(err)
+		}
+		printDayReport(daysAgo)
 	case "week":
-		printWeekReport()
+		weeksAgo, err := optionalOffset(os.Args[2:], "week")
+		if err != nil {
+			exitUsage(err)
+		}
+		printWeekReport(weeksAgo)
 	case "diagnose":
 		runDiagnose()
 	case "help", "-h", "--help":
@@ -34,6 +45,27 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func optionalOffset(args []string, command string) (int, error) {
+	if len(args) == 0 {
+		return 0, nil
+	}
+	if len(args) > 1 {
+		return 0, fmt.Errorf("%s accepts at most one offset", command)
+	}
+
+	n, err := strconv.Atoi(args[0])
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s offset must be a non-negative integer", command)
+	}
+	return n, nil
+}
+
+func exitUsage(err error) {
+	fmt.Fprintf(os.Stderr, "%v\n\n", err)
+	printUsage()
+	os.Exit(1)
 }
 
 func runDaemon() {
@@ -51,19 +83,23 @@ func runDaemon() {
 }
 
 func printTodayReport() {
+	printDayReport(0)
+}
+
+func printDayReport(daysAgo int) {
 	cfg, err := config.Default()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(1)
 	}
 
-	today := time.Now().Format("2006-01-02")
-	path := cfg.ReportPath(today)
+	date := reportDate(time.Now(), daysAgo)
+	path := cfg.ReportPath(date)
 
 	content, err := report.Read(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "no report for today (%s) yet — is the tracker running?\n", today)
+			fmt.Fprintf(os.Stderr, "no report for %s yet — is the tracker running?\n", date)
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "read report: %v\n", err)
@@ -73,20 +109,28 @@ func printTodayReport() {
 	fmt.Print(content)
 }
 
-func printWeekReport() {
+func reportDate(now time.Time, daysAgo int) string {
+	return now.AddDate(0, 0, -daysAgo).Format("2006-01-02")
+}
+
+func printWeekReport(weeksAgo int) {
 	cfg, err := config.Default()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(1)
 	}
 
-	content, err := report.Week(cfg.ReportsDir, time.Now())
+	content, err := report.Week(cfg.ReportsDir, weekReference(time.Now(), weeksAgo))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "week report: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Print(content)
+}
+
+func weekReference(now time.Time, weeksAgo int) time.Time {
+	return now.AddDate(0, 0, -7*weeksAgo)
 }
 
 func runDiagnose() {
@@ -109,7 +153,8 @@ Usage:
   timeon daemon       Run the background tracker
   timeon report       Print today's markdown report
   timeon today        Alias for report
-  timeon week         Print this week's daily totals and average
+  timeon day [n]      Print today's report, or n days ago
+  timeon week [n]     Print this week's daily totals, or n weeks ago
   timeon diagnose     Show current frontmost app detection
 
 Environment:

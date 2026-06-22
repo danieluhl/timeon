@@ -55,6 +55,19 @@ Print today's report:
 ./bin/ontime
 ```
 
+Print a report for a day in the past:
+
+```bash
+./bin/timeon day 3
+```
+
+Print a weekly summary:
+
+```bash
+./bin/timeon week
+./bin/timeon week 1  # previous calendar week
+```
+
 ## CLI Alias (`ontime`)
 
 After `make install`, the `ontime` binary is on your PATH. To add a shell alias instead:
